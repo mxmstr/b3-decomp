@@ -849,7 +849,7 @@ node: { title: "791" label: "sub_132560" color: 76 textcolor: 73 bordercolor: bl
 node: { title: "792" label: "sub_132600" color: 76 textcolor: 73 bordercolor: black }
 node: { title: "793" label: "nullsub_104" color: 76 textcolor: 73 bordercolor: black }
 node: { title: "794" label: "sub_133190" color: 76 textcolor: 73 bordercolor: black }
-node: { title: "795" label: "CB3Game__Construct" color: 76 textcolor: 73 bordercolor: black }
+node: { title: "795" label: "CB3Game::Construct" color: 76 textcolor: 73 bordercolor: black }
 node: { title: "796" label: "sub_134260" color: 76 textcolor: 73 bordercolor: black }
 node: { title: "797" label: "sub_134270" color: 76 textcolor: 73 bordercolor: black }
 node: { title: "798" label: "sub_134290" color: 76 textcolor: 73 bordercolor: black }
