@@ -29,10 +29,7 @@ def compare_nodes(demo_node, retail_node):
     children_diff = abs(len(demo_node['children']) - len(retail_node['children']))
     parents_diff = abs(len(demo_node['parents']) - len(retail_node['parents']))
 
-    # print(f"Comparing nodes: demo children: {len(demo_node['children'])}, retail children: {len(retail_node['children'])}")
-    # print(f"Comparing nodes: demo parents: {len(demo_node['parents'])}, retail parents: {len(retail_node['parents'])}")
-
-    return children_diff <= 2 and parents_diff <= 2
+    return children_diff <= 10 and parents_diff <= 2
 
 def match_graphs(demo_graph, retail_graph, start_label):
     demo_entry = find_node_by_label(demo_graph, start_label)
@@ -66,31 +63,41 @@ def match_graphs(demo_graph, retail_graph, start_label):
                         queue.append((demo_child, retail_child))
     return mapping
 
-def update_labels(retail_content, mapping, demo_graph, retail_graph):
-    updated_content = retail_content
-    for retail_title, demo_title in mapping.items():
-        demo_label = demo_graph[demo_title]['label']
-        retail_label_old = retail_graph[retail_title]['label']
-
-        old_node_str = f'node: {{ title: "{retail_title}" label: "{retail_label_old}"'
-        new_node_str = f'node: {{ title: "{retail_title}" label: "{demo_label}"'
-
-        updated_content = updated_content.replace(old_node_str, new_node_str)
-
-    return updated_content
+def update_labels(retail_content, mapping, demo_graph):
+    lines = retail_content.splitlines()
+    new_lines = []
+    for line in lines:
+        match = re.search(r'node: { title: "([^"]+)"', line)
+        if match:
+            retail_title = match.group(1)
+            if retail_title in mapping:
+                demo_title = mapping[retail_title]
+                demo_label = demo_graph[demo_title]['label']
+                new_line = re.sub(r'label: "[^"]*"', f'label: "{demo_label}"', line)
+                new_lines.append(new_line)
+            else:
+                new_lines.append(line)
+        else:
+            new_lines.append(line)
+    return "\n".join(new_lines)
 
 
 if __name__ == '__main__':
     demo_graph = parse_gdl('graph_b3_demo.gdl')
     retail_graph = parse_gdl('graph_b3_retail.gdl')
 
-    mapping = match_graphs(demo_graph, retail_graph, 'CB3Game::Construct')
+    mapping = match_graphs(demo_graph, retail_graph, 'CB3Game::Prepare')
     print("Found {} matches.".format(len(mapping)))
+
+    with open('matches.txt', 'w') as f:
+        for retail_title, demo_title in mapping.items():
+            demo_label = demo_graph[demo_title]['label']
+            f.write(f"{retail_title} -> {demo_label}\n")
 
     with open('graph_b3_retail.gdl', 'r') as f:
         retail_content = f.read()
 
-    updated_content = update_labels(retail_content, mapping, demo_graph, retail_graph)
+    updated_content = update_labels(retail_content, mapping, demo_graph)
 
     with open('graph_b3_retail.gdl', 'w') as f:
         f.write(updated_content)
