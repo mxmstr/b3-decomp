@@ -17,13 +17,15 @@ import splat
 import splat.scripts.split as split
 from splat.segtypes.linker_entry import LinkerEntry
 
+import yaml
+
 #MARK: Constants
 ROOT = Path(__file__).parent.resolve()
 TOOLS_DIR = ROOT / "tools"
 OUTDIR = "out"
 
-YAML_FILE = Path("config/sly1.yaml")
-BASENAME = "SCUS_971.98"
+YAML_FILE = Path("config/b3.yaml")
+BASENAME = "SLUS_210.50"
 LD_PATH = f"{BASENAME}.ld"
 ELF_PATH = f"{OUTDIR}/{BASENAME}"
 MAP_PATH = f"{OUTDIR}/{BASENAME}.map"
@@ -277,6 +279,7 @@ def build_stuff(linker_entries: List[LinkerEntry], skip_checksum=False, objects_
                 build(entry.object_path, entry.src_paths, "as")
         elif isinstance(seg, splat.segtypes.common.c.CommonSegC):
             if dual_objects:
+                print(f"Building C segment: {entry.object_path} from {entry.src_paths}")
                 build(entry.object_path, entry.src_paths, "cc", out_dir="obj/target", collect_objdiff=True, orig_entry=entry)
                 build(entry.object_path, entry.src_paths, "cc", out_dir="obj/current", extra_flags="-DSKIP_ASM")
             else:
@@ -420,6 +423,117 @@ def replace_instructions_with_opcodes(asm_folder: Path) -> None:
             with p.open("w") as file:
                 file.write(content)
 
+def promote_local_labels(yaml_path: Path, splat_config: dict):
+    """
+    Scans generated assembly files for cross-file local label references
+    and promotes them to global labels to fix linker errors.
+    """
+    print("Checking for local labels to promote...")
+    asm_path = Path(splat_config["options"]["asm_path"])
+    
+    with open(yaml_path, "r") as f:
+        yaml_data = yaml.safe_load(f)
+
+    # Find all segment groups by navigating the nested structure
+    groups = {}
+    for segment in yaml_data["segments"]:
+        # Check if this is a dictionary-style segment with a 'subsegments' list
+        if isinstance(segment, dict) and "subsegments" in segment:
+            # Now iterate through the list of subsegments
+            for subsegment in segment["subsegments"]:
+                # A subsegment is a list like [start, type, name, {options}]
+                # The options dict with our 'group' tag is at index 3
+                if len(subsegment) > 3 and isinstance(subsegment[3], dict) and "group" in subsegment[3]:
+                    group_name = subsegment[3]["group"]
+                    segment_name = subsegment[2]
+                    # We only care about 'asm' segments
+                    if subsegment[1] == "asm":
+                        if group_name not in groups:
+                            groups[group_name] = []
+                        groups[group_name].append(segment_name)
+    
+    if not groups:
+        print("No label groups found.")
+        return
+
+    # The rest of this function (the 3 passes) remains the same as it was correct.
+    for group_name, segment_names in groups.items():
+        print(f"Processing group '{group_name}'...")
+        
+        files_in_group = []
+        for seg_name in segment_names:
+            # Strategy: Check for a directory first, then fall back to a single file.
+
+            # 1. Check for a directory (e.g., 'asm/nonmatchings/text' or 'asm/text')
+            dir_path_nonmatching = asm_path / "nonmatchings" / seg_name
+            dir_path_main = asm_path / seg_name
+            
+            # 2. Check for a single file (e.g., 'asm/text.s')
+            file_path = asm_path / f"{seg_name}.s"
+
+            if dir_path_nonmatching.is_dir():
+                print(f"  Found asm directory: {dir_path_nonmatching}")
+                files_in_group.extend(list(dir_path_nonmatching.rglob("*.s")))
+            elif dir_path_main.is_dir():
+                print(f"  Found asm directory: {dir_path_main}")
+                files_in_group.extend(list(dir_path_main.rglob("*.s")))
+            elif file_path.is_file():
+                print(f"  Found asm file: {file_path}")
+                files_in_group.append(file_path)
+            else:
+                print(f"  Warning: Could not find asm directory or file for segment '{seg_name}'")
+
+        print(f"  Total assembly files found: {len(files_in_group)}")
+        if not len(files_in_group):
+            print(f"No assembly files found for group '{group_name}'. Skipping.")
+            continue
+
+        # Pass 1: Find all local label definitions and where they live
+        label_definitions = {}
+        label_def_regex = re.compile(r"^\s*(\.L[0-9A-F]{8}):")
+        for file_path in files_in_group:
+            with open(file_path, "r") as f:
+                for line in f:
+                    match = label_def_regex.match(line)
+                    if match:
+                        #print(f"    Found label definition: {match.group(1)} in {file_path}")
+                        label_definitions[match.group(1)] = file_path
+
+        # Pass 2: Find all labels that are referenced from a different file
+        labels_to_promote = set()
+        label_ref_regex = re.compile(r"(\.L[0-9A-F]{8})\b")
+        for file_path in files_in_group:
+            with open(file_path, "r") as f:
+                content = f.read()
+                for match in label_ref_regex.finditer(content):
+                    #print(f"    Found label reference: {match.group(1)} in {file_path}")
+                    label = match.group(1)
+                    if label in label_definitions and label_definitions[label] != file_path:
+                        labels_to_promote.add(label)
+
+        if not len(labels_to_promote):
+            print(f"No cross-file local labels found in group '{group_name}'.")
+            continue
+        
+        print(f"Promoting {len(labels_to_promote)} labels: {', '.join(sorted(list(labels_to_promote)))}...")
+
+        # Pass 3: Rewrite the files, promoting the necessary labels
+        for file_path in files_in_group:
+            with open(file_path, "r") as f:
+                content = f.read()
+            
+            original_content = content
+            
+            for label in labels_to_promote:
+                global_label = label[1:] # Remove the leading dot
+                # print(f"  Promoting label {label} to {global_label} in {file_path}")
+                content = re.sub(f"^\s*{re.escape(label)}:", f"glabel {global_label}", content, flags=re.MULTILINE)
+                content = re.sub(f"{re.escape(label)}\\b", global_label, content)
+            
+            if content != original_content:
+                with open(file_path, "w") as f:
+                    f.write(content)
+
 #MARK: Main
 def main():
     """
@@ -467,6 +581,8 @@ def main():
             return
 
     split.main([YAML_FILE], modes="all", verbose=False)
+
+    promote_local_labels(YAML_FILE, split.config)
 
     linker_entries = split.linker_writer.entries
 

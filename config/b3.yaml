@@ -1,0 +1,77 @@
+# Splat config for Your Game
+name: "Burnout 3: Takedown (USA)"
+sha1: 332be40d6081b8b5055a6ea01194ad6ff662a863
+
+options:
+  basename: "SLUS_210.50"      # Change to your ELF's filename
+  target_path: "disc/SLUS_210.50" # Change to your ELF's filename
+  elf_path: "SLUS_210.50"         # Change to your ELF's filename
+  base_path: ../
+  platform: ps2
+  compiler: EEGCC
+
+  # --- Standard options from the original project ---
+  asm_path: asm
+  src_path: src
+  build_path: obj
+
+  # Assembly options
+  generate_asm_macros_files: False
+  named_regs_for_c_funcs: False
+  find_file_boundaries: False
+  disasm_unknown: True
+
+  # Rodata options
+  rodata_string_guesser_level: 0 # improve string detection
+  suggestion_rodata_section_start: True
+  pair_rodata_to_text: False
+  migrate_rodata_to_functions: True
+
+  # Auto-generate undefined functions and symbols
+  create_undefined_funcs_auto: True
+  undefined_funcs_auto_path: config/undefined_funcs_auto.txt
+  create_undefined_syms_auto: True
+  undefined_syms_auto_path: config/undefined_syms_auto.txt
+
+  # Manually defined symvols
+  symbol_addrs_path: config/symbol_addrs_b3.txt
+
+  # Splat extensions
+  extensions_path: tools/splat_ext
+
+  # (Include other standard options like create_undefined_funcs_auto, etc.)
+  section_order: [".text", ".data", ".rodata", ".bss"] # A typical order
+  auto_link_sections: [".data", ".rodata", ".bss"]
+  subalign: 8
+
+segments:
+  - [0, databin, elf_header_and_padding]
+
+  # The 'main' segment now specifically defines the executable code (.text).
+  # The bss_size and other top-level properties remain the same as they describe
+  # the entire memory layout from the original LOAD header.
+  - name: main
+    type: code
+    start: 0x100
+    vram: 0x100000
+    bss_size: 0x1A0C380
+    subsegments:
+      # This segment now only covers the .text section.
+      # It starts at 0x100 and ends right before our new .rodata section.
+      - [0x100, asm, asdf1, {group: main}]
+      #- [0x1BF8B0, cpp, CGtPolygonSoup16, {group: main}]
+      - [0x1BF8D0, cpp, b3/CGtPolygonSoup]
+      - [0x1BF8F0, asm, asdf2, {group: main}]
+      - [0x369F00, data]
+
+  # We define a new top-level segment for our read-only data.
+  # - name: data
+  #   type: data
+  #   start: 0x369F00 # This is the file offset we calculated.
+  #   vram: 0x469E00 
+  #   subsegments:
+  #     # To start, this block will contain both .rodata and any subsequent
+  #     # .data sections. You will split this further later.
+  #     - [0x369F00, data]
+
+  - [0x3e2780, databin, trailing_data]

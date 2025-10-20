@@ -1,0 +1,2 @@
+FixUp__16CGtPolygonSoup16 = 0x2BF7B0; // type:func
+FixUp__14CGtPolygonSoup = 0x2BF7D0; // type:func
