@@ -18,23 +18,28 @@ def parse_gdl(file_path):
 
     return graph
 
-def find_entrypoint(graph):
+def find_node_by_label(graph, label):
     for title, node in graph.items():
-        if node['label'] == 'ENTRYPOINT':
+        if node['label'] == label:
             return title
     return None
 
 def compare_nodes(demo_node, retail_node):
-    # Simple comparison based on the number of children and parents
-    return len(demo_node['children']) == len(retail_node['children']) and \
-           len(demo_node['parents']) == len(retail_node['parents'])
+    # Allow for some flexibility in matching
+    children_diff = abs(len(demo_node['children']) - len(retail_node['children']))
+    parents_diff = abs(len(demo_node['parents']) - len(retail_node['parents']))
 
-def match_graphs(demo_graph, retail_graph):
-    demo_entry = find_entrypoint(demo_graph)
-    retail_entry = find_entrypoint(retail_graph)
+    # print(f"Comparing nodes: demo children: {len(demo_node['children'])}, retail children: {len(retail_node['children'])}")
+    # print(f"Comparing nodes: demo parents: {len(demo_node['parents'])}, retail parents: {len(retail_node['parents'])}")
+
+    return children_diff <= 2 and parents_diff <= 2
+
+def match_graphs(demo_graph, retail_graph, start_label):
+    demo_entry = find_node_by_label(demo_graph, start_label)
+    retail_entry = find_node_by_label(retail_graph, start_label)
 
     if not demo_entry or not retail_entry:
-        print("ENTRYPOINT not found in one of the graphs.")
+        print(f"Starting node with label '{start_label}' not found in one of the graphs.")
         return {}
 
     mapping = {}
@@ -79,7 +84,7 @@ if __name__ == '__main__':
     demo_graph = parse_gdl('graph_b3_demo.gdl')
     retail_graph = parse_gdl('graph_b3_retail.gdl')
 
-    mapping = match_graphs(demo_graph, retail_graph)
+    mapping = match_graphs(demo_graph, retail_graph, 'CB3Game::Construct')
     print("Found {} matches.".format(len(mapping)))
 
     with open('graph_b3_retail.gdl', 'r') as f:
@@ -87,7 +92,7 @@ if __name__ == '__main__':
 
     updated_content = update_labels(retail_content, mapping, demo_graph, retail_graph)
 
-    with open('graph_b3_retail_updated.gdl', 'w') as f:
+    with open('graph_b3_retail.gdl', 'w') as f:
         f.write(updated_content)
 
-    print("Updated labels written to graph_b3_retail_updated.gdl")
+    print("Updated labels written to graph_b3_retail.gdl")
