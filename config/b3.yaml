@@ -47,31 +47,17 @@ options:
 segments:
   - [0, databin, elf_header_and_padding]
 
-  # The 'main' segment now specifically defines the executable code (.text).
-  # The bss_size and other top-level properties remain the same as they describe
-  # the entire memory layout from the original LOAD header.
   - name: main
     type: code
     start: 0x100
     vram: 0x100000
     bss_size: 0x1A0C380
     subsegments:
-      # This segment now only covers the .text section.
-      # It starts at 0x100 and ends right before our new .rodata section.
-      - [0x100, asm, asdf1, {group: main}]
-      #- [0x1BF8B0, cpp, CGtPolygonSoup16, {group: main}]
-      - [0x1BF8D0, cpp, b3/CGtPolygonSoup]
-      - [0x1BF8F0, asm, asdf2, {group: main}]
-      - [0x369F00, data]
-
-  # We define a new top-level segment for our read-only data.
-  # - name: data
-  #   type: data
-  #   start: 0x369F00 # This is the file offset we calculated.
-  #   vram: 0x469E00 
-  #   subsegments:
-  #     # To start, this block will contain both .rodata and any subsequent
-  #     # .data sections. You will split this further later.
-  #     - [0x369F00, data]
-
-  - [0x3e2780, databin, trailing_data]
+      - [0x100, asm, text1, {group: main}]
+      - [0x1BF8B0, cpp, b3/CGtPolygonSoup]
+      - [0x1BF8F0, asm, text2, {group: main}]
+      - [0x2BE9D0, cpp, b3/CGtCollisionKDTree]
+      - [0x2BFFE0, asm, text3, {group: main}]
+      - [0x369E00, data]
+  
+  - [0x3E2780, databin, trailing_data]

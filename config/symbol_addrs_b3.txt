@@ -1,2 +1,10 @@
+
+CGtCollisionKDTree__FixUp = 0x2BE9D0; // type:func
+CGtCollisionKDTree__IntersectSphere = 0x2BEAB0; // type:func
+CGtCollisionKDTree__IntersectLine = 0x2BF060; // type:func
+CGtCollisionKDTree__IntersectLineNearest = 0x2BF820; // type:func
+
+
 FixUp__16CGtPolygonSoup16 = 0x2BF7B0; // type:func
 FixUp__14CGtPolygonSoup = 0x2BF7D0; // type:func
+
